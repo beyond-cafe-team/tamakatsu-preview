@@ -20,4 +20,5 @@ jobs:
             CLAUDE.md
             README.md
             apps-script/**
+            admin-server/**
             proposals/**

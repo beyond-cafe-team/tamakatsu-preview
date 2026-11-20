@@ -15,7 +15,8 @@ async function api(url,options={}){
  const headers={...options.headers};
  if(options.body && !(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body)}
  if(state.user)headers['X-CSRF-Token']=state.user.csrf;
- const response=await window.TamaDemo.request(url,{...options,headers});
+ const transport=window.TamaDemo?.request || fetch;
+ const response=await transport(url,{...options,headers});
  const data=await response.json().catch(()=>({error:'通信に失敗しました。時間をおいて再度お試しください。'}));
  if(!response.ok){if(response.status===401 && state.user){state.user=null;renderLogin()}throw new Error(data.error||'操作に失敗しました。')}
  return data;
@@ -29,22 +30,24 @@ function dirtyCheck(){return !state.dirty||confirm('保存していない変更�
 function go(page){if(!dirtyCheck())return;if(page==='students')state.studentId=null;Object.assign(state,{page,editing:null,dirty:false});render();window.scrollTo(0,0)}
 function renderLogin(){
  const auth=new URLSearchParams(location.search).get('auth');
- const errors={denied:'このGoogleアカウントにはアクセス権限がありません。管理者に登録を依頼してください。',failed:'ログインを完了できませんでした。もう一度お試しください。',setup:'Googleログインの接続設定がまだ完了していません。'};
+ const invite=new URLSearchParams(location.hash.slice(1)).get('invite')||'';
+ const errors={denied:'このGoogleアカウントにはアクセス権限がありません。管理者に登録を依頼してください。',failed:'ログインを完了できませんでした。もう一度お試しください。',setup:'Googleログインの接続設定がまだ完了していません。',invite:'招待リンクの期限が切れているか、登録済みです。管理者に新しいリンクを依頼してください。',match:'招待されたメールアドレスのGoogleアカウントを選んでください。招待リンクからやり直せます。'};
+ const googleForm=state.config.googleReady?`<form action="/auth/google" method="post"><input type="hidden" name="invite" value="${esc(invite)}"><button type="submit" class="button primary google-button">${invite?'Googleでメンター登録':'Googleでログイン'}</button></form>`:'<p class="login-note">Googleログインの接続設定が必要です。</p>';
  root.innerHTML=`<div class="login-layout"><section class="login-brand">${brand()}<div class="login-caption"><h1>学生との出会いを、<br><em>ここから。</em></h1><div class="login-characters" aria-hidden="true">
  <img src="../assets/result-cast/DCIG.webp" width="560" height="700" alt="">
  <img src="../assets/result-cast/ACTG.webp" width="560" height="700" alt="">
  <img src="../assets/result-cast/ASTG.webp" width="560" height="700" alt="">
- </div></div><footer>Produced by BEYOND CAFE</footer></section><main class="login-main"><div class="login-box"><h2>管理画面を試す</h2><p>確認する役割を選んでください。</p>${errors[auth]?`<div class="auth-error" role="alert">${errors[auth]}</div>`:''}${!state.config.googleReady?'<p class="login-note">確認用デモはGoogleログイン不要です。<br>URLを知っている人は開けます。架空のデータでお試しください。</p>':'<p class="login-note">アクセス権限のないアカウントではログインできません。権限については運営管理者にお問い合わせください。</p>'}${demo()?`<div class="demo-buttons"><button class="button primary" data-demo="admin">管理者として画面を確認 ${icon('arrow')}</button><button class="button" data-demo="mentor">メンターとして画面を確認 ${icon('arrow')}</button></div><label class="field demo-account-field"><span>登録したデモアカウントで確認</span><select id="demo-account-select">${(state.demoAccounts||[]).map(a=>`<option value="${esc(a.email)}">${esc(a.email)}</option>`).join('')}</select></label><button class="button" id="demo-account-login">このアカウントで画面を確認</button><p class="demo-disclaimer">確認用デモです。実際のGoogle認証・権限付与は行いません。変更はこのブラウザーだけに保存されます。実在するメールアドレスや機密情報は入力しないでください。</p>`:''}</div></main></div>`;
+ </div></div><footer>Produced by BEYOND CAFE</footer></section><main class="login-main"><div class="login-box">${errors[auth]?`<div class="auth-error" role="alert">${errors[auth]}</div>`:''}
+ ${demo()?`<h2>管理画面を試す</h2><p>確認する役割を選んでください。</p><p class="login-note">確認用デモには架空のデータを入力してください。</p><div class="demo-buttons"><button class="button primary" data-demo="admin">管理者として画面を確認 ${icon('arrow')}</button><button class="button" data-demo="mentor">メンターとして画面を確認 ${icon('arrow')}</button></div><label class="field demo-account-field"><span>登録したデモアカウントで確認</span><select id="demo-account-select">${(state.demoAccounts||[]).map(a=>`<option value="${esc(a.email)}">${esc(a.email)}</option>`).join('')}</select></label><button class="button" id="demo-account-login">このアカウントで画面を確認</button><p class="demo-disclaimer">確認用デモです。実際のGoogle認証・権限付与は行いません。変更はこのブラウザーだけに保存されます。実在するメールアドレスや機密情報は入力しないでください。</p>`:`<h2>${invite?'メンター登録':'メンター管理にログイン'}</h2><p>${invite?'招待されたメールアドレスのGoogleアカウントを使ってください。':'運営は @beyond-cafe.com のGoogle Workspaceアカウントでログインできます。初回のメンター登録には招待リンクが必要です。'}</p>${googleForm}` }</div></main></div>`;
  root.querySelectorAll('[data-demo]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await api('/api/demo/login',{method:'POST',body:{role:button.dataset.demo}});await boot()}catch(e){toast(e.message,true);button.disabled=false}}));
  root.querySelector('#demo-account-login')?.addEventListener('click',async()=>{try{await api('/api/demo/login',{method:'POST',body:{email:root.querySelector('#demo-account-select').value}});await boot()}catch(e){toast(e.message,true)}});
- if(!state.config.googleReady)root.querySelector('.google-button')?.addEventListener('click',event=>{event.preventDefault();toast('Googleログインは接続設定後に利用できます。',true)});
 }
 function render(){
  if(!state.user)return renderLogin();
- const pages=[['profiles','メンタープロフィール','people'],['students','担当学生の管理','people'],['reviews','レビュー管理','review'],...(isAdmin()?[['accounts','アカウント・権限','key'],['activity','操作履歴','clock'],['connection','サイト接続','link']]:[])];
+ const pages=[['profiles','メンタープロフィール','people'],['students','担当学生の管理','people'],...(demo()?[['reviews','レビュー管理','review']]:[]),...(isAdmin()?[['accounts','アカウント・権限','key'],['activity','操作履歴','clock'],['connection','サイト接続','link']]:[])];
  const current=pages.find(p=>p[0]===state.page);
- root.innerHTML=`<div class="layout"><aside class="sidebar">${brand()}<div class="mobile-brand">${brand()}<button class="logout" data-logout aria-label="ログアウト">${icon('logout')}</button></div><nav class="side-nav" aria-label="管理メニュー">${pages.map(([id,label,i])=>`<button data-page="${id}" class="${state.page===id?'active':''}" ${state.page===id?'aria-current="page"':''}>${icon(i)}${label}</button>`).join('')}</nav><div class="sidebar-bottom"><a class="site-link" href="${esc(state.config.publicSite)}" target="_blank" rel="noopener noreferrer">${icon('external')}公開サイトを確認</a><div class="identity"><span class="avatar">${isAdmin()?'A':'M'}</span><div class="identity-text"><strong>${isAdmin()?'運営管理者':'メンター'}</strong><small title="${esc(state.user.email)}">${esc(state.user.email)}</small></div><button class="logout" data-logout aria-label="ログアウト">${icon('logout')}</button></div></div></aside><main class="main"><header class="topbar"><div class="breadcrumbs">ワークスペース <span>/</span> <strong>${esc(current?.[1])}</strong></div><button class="button small" id="reset-demo">デモを初期化</button><span class="mode-indicator"><i class="dot"></i>${demo()?'公開デモ':'メンター管理'}</span></header>${demo()?'<div class="demo-banner">一般公開の確認用デモです。Google認証はありません。実在する学生情報・連絡先は入力しないでください。変更はこのブラウザー内だけに保存されます。</div>':''}<div id="content"></div><p class="footer-note">タマ活 MENTOR WORKSPACE · Produced by BEYOND CAFE</p></main></div>`;
- root.querySelector('#reset-demo').addEventListener('click',()=>{if(confirm('このブラウザーに保存したデモの編集内容を初期状態に戻しますか？')){window.TamaDemo.reset();location.reload()}});
+ root.innerHTML=`<div class="layout"><aside class="sidebar">${brand()}<div class="mobile-brand">${brand()}<button class="logout" data-logout aria-label="ログアウト">${icon('logout')}</button></div><nav class="side-nav" aria-label="管理メニュー">${pages.map(([id,label,i])=>`<button data-page="${id}" class="${state.page===id?'active':''}" ${state.page===id?'aria-current="page"':''}>${icon(i)}${label}</button>`).join('')}</nav><div class="sidebar-bottom"><a class="site-link" href="${esc(state.config.publicSite)}" target="_blank" rel="noopener noreferrer">${icon('external')}公開サイトを確認</a><div class="identity"><span class="avatar">${isAdmin()?'A':'M'}</span><div class="identity-text"><strong>${isAdmin()?'運営管理者':'メンター'}</strong><small title="${esc(state.user.email)}">${esc(state.user.email)}</small></div><button class="logout" data-logout aria-label="ログアウト">${icon('logout')}</button></div></div></aside><main class="main"><header class="topbar"><div class="breadcrumbs">ワークスペース <span>/</span> <strong>${esc(current?.[1])}</strong></div>${demo()?'<button class="button small" id="reset-demo">デモを初期化</button>':''}<span class="mode-indicator"><i class="dot"></i>${demo()?'公開デモ':'メンター管理'}</span></header>${demo()?'<div class="demo-banner">一般公開の確認用デモです。Google認証はありません。実在する学生情報・連絡先は入力しないでください。変更はこのブラウザー内だけに保存されます。</div>':''}<div id="content"></div><p class="footer-note">タマ活 MENTOR WORKSPACE · Produced by BEYOND CAFE</p></main></div>`;
+ root.querySelector('#reset-demo')?.addEventListener('click',()=>{if(confirm('このブラウザーに保存したデモの編集内容を初期状態に戻しますか？')){window.TamaDemo.reset();location.reload()}});
  root.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
  root.querySelectorAll('[data-logout]').forEach(b=>b.addEventListener('click',async()=>{if(!dirtyCheck())return;try{await api('/api/logout',{method:'POST'});Object.assign(state,{user:null,dirty:false,editing:null,page:'profiles'});renderLogin()}catch(e){toast(e.message,true)}}));
  ({profiles:renderProfiles,students:renderStudents,reviews:renderReviews,accounts:renderAccounts,activity:renderActivity,connection:renderConnection}[state.page]||renderProfiles)();
@@ -56,8 +59,8 @@ function empty(title,text){return `<div class="empty">${icon('review')}<h3>${tit
 function renderProfiles(){
  if(state.editing)return renderEditor();
  const reviewCount=state.reviews.length;
- content().innerHTML=heading('YOUR MENTOR TEAM','メンタープロフィール','紐づけた本人だけが編集でき、ほかのプロフィールは閲覧できます。',isAdmin()?`<button class="button primary" id="add-mentor">${icon('plus')}メンターを追加</button>`:'')+stats([['登録メンター',state.mentors.length,'名','people'],['届いたレビュー',reviewCount,'件','review'],['公開中のレビュー',state.reviews.filter(r=>!r.hidden).length,'件','star',true]])+`<div class="section-bar"><h2>メンター一覧<small>${state.mentors.length}名</small></h2>${isAdmin()?'<input class="search" id="mentor-search" type="search" placeholder="メンター名で検索" aria-label="メンター名で検索">':''}</div><div class="mentor-grid" id="mentor-cards"></div><div class="info-note">${icon('info')}<span>プロフィールの内容は、本人に確認した情報を入力してください。${demo()?'写真・プロフィールは既存サイトの仮データです。':'公開サイトへの反映には、サイト側のAPI接続が必要です。'}</span></div>`;
- document.querySelector('#add-mentor')?.addEventListener('click',openNewMentor);
+ content().innerHTML=heading('YOUR MENTOR TEAM','メンタープロフィール','紐づけた本人だけが編集でき、ほかのプロフィールは閲覧できます。',isAdmin()?`<button class="button primary" id="add-mentor">${icon('plus')}${demo()?'メンターを追加':'メンターを招待'}</button>`:'')+stats([['登録メンター',state.mentors.length,'名','people'],['届いたレビュー',reviewCount,'件','review'],['公開中のレビュー',state.reviews.filter(r=>!r.hidden).length,'件','star',true]])+`<div class="section-bar"><h2>メンター一覧<small>${state.mentors.length}名</small></h2>${isAdmin()?'<input class="search" id="mentor-search" type="search" placeholder="メンター名で検索" aria-label="メンター名で検索">':''}</div><div class="mentor-grid" id="mentor-cards"></div><div class="info-note">${icon('info')}<span>プロフィールの内容は、本人に確認した情報を入力してください。${demo()?'写真・プロフィールは既存サイトの仮データです。':'公開サイトへの反映には、サイト側のAPI接続が必要です。'}</span></div>`;
+ document.querySelector('#add-mentor')?.addEventListener('click',()=>demo()?openNewMentor():openInvite());
  renderMentorCards();
  content().querySelector('#mentor-search')?.addEventListener('input',e=>{state.search=e.target.value;renderMentorCards()});
 }
@@ -71,6 +74,41 @@ function ownerPanel(m){return isAdmin()?`<section class="panel owner-panel"><h2>
 function wireOwner(m){
  const form=document.querySelector('#owner-form');if(!form)return;
  form.addEventListener('submit',async e=>{e.preventDefault();if(!dirtyCheck())return;const button=form.querySelector('[type=submit]');const error=form.querySelector('#owner-error');button.disabled=true;error.hidden=true;try{await api('/api/mentors/'+m.id+'/owner',{method:'PUT',body:{ownerEmail:form.elements.ownerEmail.value,version:m.version}});state.dirty=false;await refresh();renderEditor();toast('編集アカウントを紐づけました。')}catch(err){error.hidden=false;error.textContent=err.message}finally{button.disabled=false}});
+}
+function openInvite(mentor){
+ const dialog=document.querySelector('#account-dialog');
+ dialog.innerHTML=`<h2 id="account-title">メンターを招待</h2><p>${mentor?esc(mentor.name)+'の編集を担当するメンターを招待します。':'新しいメンターのプロフィールを作成します。'}</p>
+ <form id="mentor-invite-form">${mentor?'':field('name','表示名','',40)}
+ <label class="field"><span>メンター本人のGoogleメールアドレス</span><input name="email" type="email" maxlength="254" value="${esc(mentor?.ownerEmail||'')}" required></label>
+ <p class="mentor-theme">リンクは7日間有効で、指定したGoogleアカウントが1回だけ使用できます。${mentor?.ownerEmail?' 別の人が登録すると、以前の担当者のアクセス権は解除されます。':''}</p>
+ <p class="form-error" role="alert" hidden></p>
+ <div class="dialog-actions"><button class="button" type="button" data-close>閉じる</button><button class="button primary" type="submit">招待リンクを発行</button></div></form>`;
+ dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+ const form=dialog.querySelector('form');
+ form.onsubmit=async event=>{
+   event.preventDefault();
+   const submit=form.querySelector('[type=submit]');
+   const error=form.querySelector('.form-error');
+   submit.disabled=true;
+   error.hidden=true;
+   try{
+     const body=Object.fromEntries(new FormData(form));
+     if(mentor)body.mentorId=mentor.id;
+     const result=await api('/api/mentor-invites',{method:'POST',body});
+     dialog.innerHTML=`<h2 id="account-title">招待リンクを発行しました</h2><p>招待する本人にこのリンクを共有してください。</p>
+     <label class="field"><span>招待リンク</span><input id="invite-url" readonly value="${esc(result.url)}"></label>
+     <p role="status" id="invite-feedback"></p><div class="dialog-actions"><button class="button" type="button" data-close>閉じる</button><button class="button primary" type="button" id="copy-invite">リンクをコピー</button></div>`;
+     dialog.querySelector('[data-close]').onclick=()=>dialog.close();
+     dialog.querySelector('#copy-invite').onclick=async()=>{
+       const input=dialog.querySelector('#invite-url');
+       const feedback=dialog.querySelector('#invite-feedback');
+       try{await navigator.clipboard.writeText(input.value);feedback.textContent='リンクをコピーしました。'}
+       catch{input.select();feedback.textContent='選択されたリンクをコピーしてください。'}
+     };
+     try{await refresh();render()}catch(err){toast(err.message,true)}
+   }catch(err){error.textContent=err.message;error.hidden=false;submit.disabled=false}
+ };
+ dialog.showModal();
 }
 function openNewMentor(){
  const dialog=document.querySelector('#account-dialog');
@@ -123,7 +161,7 @@ function renderEditor(){
  const careerLabels=kind=>m.career.filter(item=>item.kind===kind).map(item=>item.label).join('、');
  const plans=m.plans||[];
  const grade=m.grade??(careerLabels('status').match(/(?:^|\D)(27|28|29)卒/)?.[1]||'');
- content().innerHTML=heading(editable?'EDIT PROFILE':'VIEW PROFILE',editable?'プロフィールを編集':'プロフィール詳細',m.name,'<button class="button" id="back-profiles">一覧に戻る</button>')+`
+ content().innerHTML=heading(editable?'EDIT PROFILE':'VIEW PROFILE',editable?'プロフィールを編集':'プロフィール詳細',esc(m.name),'<button class="button" id="back-profiles">一覧に戻る</button>')+`
  <div class="editor-layout profile-editor">
    <form id="profile-form">
      <section class="panel">
@@ -181,9 +219,10 @@ function renderEditor(){
      <div id="live-preview"></div>
      <details class="profile-preview-details"><summary>プロフィール詳細のプレビュー</summary><div id="live-details"></div></details>
    </aside>
- </div>`+ownerPanel(m)+((isAdmin()||editable)?'<div class="student-profile-link"><button class="button" id="profile-students">担当学生・進捗を見る</button></div>':'');
+ </div>`+(demo()?ownerPanel(m):isAdmin()?`<section class="panel owner-panel"><h2>編集アカウント</h2><p>${esc(m.ownerEmail||'未登録')}</p><button class="button" id="invite-profile">このプロフィールに招待する</button></section>`:'')+((isAdmin()||editable)?'<div class="student-profile-link"><button class="button" id="profile-students">担当学生・進捗を見る</button></div>':'');
  document.querySelector('#profile-students')?.addEventListener('click',()=>openMentorStudents(m.id));
  wireOwner(m);
+ document.querySelector('#invite-profile')?.addEventListener('click',()=>openInvite(m));
  const form=document.querySelector('#profile-form');
  const clearedPlans=new Set();
  form.querySelectorAll('.clear-plan').forEach((button,i)=>button.addEventListener('click',()=>{
@@ -244,6 +283,13 @@ function renderReviewList(){
  document.querySelectorAll('[data-review]').forEach(b=>b.addEventListener('click',async()=>{const review=state.reviews.find(r=>r.id===b.dataset.review);b.disabled=true;try{await api('/api/reviews/'+review.id,{method:'PATCH',body:{hidden:!review.hidden}});await refresh();renderReviews();toast(review.hidden?'レビューを公開にしました。':'レビューを非公開にしました。')}catch(e){toast(e.message,true);b.disabled=false}}));
 }
 function renderAccounts(){
+ if(!demo()){
+   content().innerHTML=heading('ACCESS MANAGEMENT','アカウント・権限','運営は @beyond-cafe.com の Google Workspace を使い、メンターは招待リンクから登録します。',`<button class="button primary" id="invite-account">${icon('plus')}メンターを招待</button>`)+`
+   <div class="panel table-panel"><div class="table-wrap"><table class="accounts-table"><thead><tr><th>Googleアカウント</th><th>権限</th><th>プロフィール</th><th>状態</th></tr></thead>
+   <tbody>${state.accounts.map(account=>`<tr><td>${esc(account.email)}</td><td>${account.role==='admin'?'運営管理者':'メンター'}</td><td>${esc(mentorById(account.mentor_id)?.name||'—')}</td><td>${account.active?'有効':'利用停止'}</td></tr>`).join('')}</tbody></table></div></div>`;
+   document.querySelector('#invite-account').onclick=()=>openInvite();
+   return;
+ }
  content().innerHTML=heading('ACCESS MANAGEMENT','アカウント・権限','Googleアカウントを登録して、編集できる範囲を設定します。',`<button class="button primary" id="add-account">${icon('plus')}アカウントを登録</button>`)+`<div class="panel table-panel"><div class="table-wrap"><table class="accounts-table"><thead><tr><th>Googleアカウント</th><th>権限</th><th>編集できるプロフィール</th><th>状態</th><th></th></tr></thead><tbody>${state.accounts.map((a,i)=>`<tr><td class="account-cell"><strong>${esc(a.email)}</strong>${a.email===state.user.email?'<small>ログイン中のアカウント</small>':''}</td><td>${a.role==='admin'?'運営管理者':'メンター'}</td><td>${esc(state.mentors.filter(m=>m.ownerEmail===a.email).map(m=>m.name).join('、')||'なし（閲覧のみ）')}</td><td><span class="pill ${a.active?'':'muted'}">${a.active?'有効':'利用停止'}</span></td><td><button class="text-button" data-account="${i}">${icon('edit')}編集</button></td></tr>`).join('')}</tbody></table></div></div><div class="info-note">${icon('info')}<span>登録されたメールアドレスのGoogleアカウントだけがログインできます。全員がプロフィールを閲覧でき、本文を編集できるのは紐づけた本人だけです。紐づけはプロフィール詳細画面で設定します。権限を変更すると、そのアカウントの既存ログインは解除されます。招待メールは自動送信されません。</span></div>`;
  document.querySelector('#add-account').addEventListener('click',()=>openAccount());
  document.querySelectorAll('[data-account]').forEach(b=>b.addEventListener('click',()=>openAccount(state.accounts[+b.dataset.account])));
@@ -258,19 +304,24 @@ function openAccount(account=null){
  dialog.showModal();
 }
 function renderActivity(){
- const actions={'student.create':'学生を登録','student.update':'学生の進捗・情報を更新','mentor.create':'メンターを追加','mentor.owner':'編集アカウントを変更','profile.update':'プロフィールを更新','photo.update':'プロフィール写真を更新','review.hide':'レビューを非公開に変更','review.show':'レビューを公開に変更','account.update':'アカウント権限を更新'};
+ const actions={'student.create':'学生を登録','student.update':'学生の進捗・情報を更新','mentor.create':'メンターを追加','mentor.owner':'編集アカウントを変更','profile.update':'プロフィールを更新','photo.update':'プロフィール写真を更新','review.hide':'レビューを非公開に変更','review.show':'レビューを公開に変更','account.update':'アカウント権限を更新','mentor.invite':'招待リンクを発行','mentor.accept_invite':'招待からメンター登録'};
  content().innerHTML=heading('ACTIVITY LOG','操作履歴','プロフィール・レビュー・アカウントの変更を記録しています。')+`<div class="panel activity">${state.events.map(e=>`<div class="activity-row"><div>${esc(actions[e.action]||e.action)}<small>${esc(e.actor)} · ${esc(mentorById(e.target)?.name||e.target)}</small></div><small>${esc(new Date(e.created_at*1000).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}))}</small></div>`).join('')||empty('まだ操作履歴はありません','変更を保存すると、操作した人と日時がここに記録されます。')}</div>`;
 }
 function renderConnection(){
+ if(!demo()){
+   content().innerHTML=heading('CONNECT YOUR SITE','サイト接続','Googleログインと公開サイトの接続状況')+`<section class="panel"><h2>Googleログイン</h2><p>${state.config.googleReady?'接続設定済み':'接続設定待ち'}</p><h2>公開プロフィールとレビュー</h2><p>公開サイトとの同期は未接続です。管理画面の編集内容は管理サーバーに保存されます。</p></section>`;
+   return;
+ }
  content().innerHTML=heading('CONNECT YOUR SITE','サイト接続','管理画面と公開サイトをつなぐための情報です。')+`<div class="connection-grid"><section class="panel"><h2>現在の状態</h2><p class="connection-state">公開サイト側の接続作業はまだ行っていません。管理画面で保存しても、現在の公開サイトは変わりません。</p><p class="mentor-theme">対象サイト</p><a class="button small" href="${esc(state.config.publicSite)}" target="_blank" rel="noopener noreferrer">${icon('external')}タマ活の公開サイトを開く</a></section><section class="panel"><h2>プロフィールの公開API</h2><p class="mentor-theme">保存されたプロフィールを、公開サイト向けの形式で取得できます。写真URLも含まれます。</p><code class="connection-url">API_BASE_URL/public/mentors</code><h2>レビューの公開API</h2><p class="mentor-theme">非公開のレビューとデモデータは返しません。</p><code class="connection-url">API_BASE_URL/public/reviews</code><div class="info-note">${icon('info')}<span>以下は将来接続するAPIのパス例です。公開デモにAPIサーバーはありません。本番接続時にサーバーURLへ置き換えます。既存スプレッドシートのレビュー移行・新規投稿先の接続は別途必要です。</span></div></section><section class="panel"><h2>Googleログイン</h2><p class="connection-state">${state.config.googleReady?'接続設定あり（実際のGoogleログインでの確認が必要です）':'接続設定待ち：Google OAuthクライアントID・シークレット・公開URLが必要です。'}</p><p class="mentor-theme">確認用管理者：admin@example.test<br>設定方法は同梱のREADME.mdに記載しています。</p></section></div>`;
 }
 window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue=''}});
 async function boot(){
  const startupStatus=document.querySelector('#startup-status');
  try{
-   if(!window.TamaDemo || typeof renderStudents!=='function')throw new Error('管理画面のファイルを読み込めませんでした。');
+   if(typeof renderStudents!=='function')throw new Error('管理画面のファイルを読み込めませんでした。');
    state.config=await api('/api/config');
    if(demo())state.demoAccounts=(await api('/api/demo/accounts')).accounts;
+   else if(new URLSearchParams(location.hash.slice(1)).has('invite')){renderLogin();return}
    try{state.user=await api('/api/me')}catch{state.user=null}
    if(state.user)await refresh();
    render();
@@ -280,4 +331,7 @@ async function boot(){
    toast(e.message,true);
  }
 }
+window.addEventListener('hashchange',()=>{
+ if(state.config&&!demo())boot();
+});
 boot();
