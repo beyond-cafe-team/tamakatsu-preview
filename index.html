@@ -623,7 +623,7 @@ function mountSiteNavigation(){const nav=document.createElement('nav');nav.class
 
 mountSiteNavigation();document.querySelector('a.tama-wordmark')?.addEventListener('click',e=>{if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return;e.preventDefault();if(location.search)history.replaceState(null,'',location.pathname);quizCleanup();home();});
 const producer=document.createElement("footer");producer.className="producer-credit";producer.innerHTML='<span>Produced by</span><a href="https://service.beyond-cafe.com/" target="_blank" rel="noopener noreferrer"><img src="assets/beyond-cafe-official.png" alt="BEYOND CAFE" width="215" height="52"></a>';app.after(producer);
-const managementEntry=document.createElement('div');managementEntry.className='mentor-management-entry';managementEntry.innerHTML='<a href="mentor-admin/">メンター・運営向け 管理画面入口 →</a>';producer.after(managementEntry);
+const managementEntry=document.createElement('div');managementEntry.className='mentor-management-entry';managementEntry.innerHTML='<a href="https://tamakatsu.beyond-cafe.com/mentor-admin/">メンター・運営向け 管理画面入口 →</a>';producer.after(managementEntry);
 
 </script>
 
