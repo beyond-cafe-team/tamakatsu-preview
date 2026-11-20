@@ -6,14 +6,22 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; base-uri 'self'; form-action 'self'">
   <meta name="robots" content="noindex,nofollow">
   <meta name="referrer" content="no-referrer"><title>タマ活｜メンター管理デモ</title>
-  <link rel="stylesheet" href="./style.css?v=5">
-  <script src="./seed.js?v=5" defer></script>
-  <script src="./demo-api.js?v=6" defer></script>
+  <link rel="stylesheet" href="./style.css?v=6">
+  <script src="../mentors-data.js" defer></script>
+  <script src="./seed.js?v=6" defer></script>
+  <script src="./demo-api.js?v=7" defer></script>
   <script src="./students.js?v=5" defer></script>
-  <script src="./app.js?v=6" defer></script>
+  <script src="./app.js?v=8" defer></script>
 </head>
 <body>
-  <div id="app"><div class="loading">管理画面を読み込んでいます…</div></div>
+  <div id="app">
+    <main class="empty" id="startup-status">
+      <h1>メンター管理画面</h1>
+      <p>画面が開かない場合は、サイトのURLから開き直してください。</p>
+      <a class="button" href="">再読み込み</a>
+      <noscript><p>管理画面を開くにはJavaScriptを有効にしてください。</p></noscript>
+    </main>
+  </div>
   <div id="toast" role="status" aria-live="polite"></div>
   <dialog id="account-dialog" aria-labelledby="account-title"></dialog>
 </body>

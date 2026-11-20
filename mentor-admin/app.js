@@ -59,7 +59,7 @@ function renderProfiles(){
 }
 function renderMentorCards(){
  const mentors=state.mentors.filter(m=>m.name.toLowerCase().includes(state.search.toLowerCase()));
- document.querySelector('#mentor-cards').innerHTML=mentors.map(m=>{const reviews=state.reviews.filter(r=>r.mentor_id===m.id);const score=reviews.length?(reviews.reduce((s,r)=>s+r.stars,0)/reviews.length).toFixed(1):'—';const hasAccount=!!m.ownerEmail||canEdit(m);return `<article class="mentor-card"><div class="mentor-card-header"><img class="mentor-photo" src="${esc(m.photo)}" alt="${esc(m.name)}"><div><h2 class="mentor-name">${esc(m.name)}</h2><span class="pill">${icon('check')}プロフィール登録済み</span><span class="pill type">${esc(m.type)}</span></div></div><p class="mentor-copy">${esc(m.catch)}</p><p class="mentor-theme">${esc(m.theme)}</p><div class="tags">${m.features.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="card-meta"><span><span class="stars">★</span>${score} <span>（レビュー ${reviews.length}件${demo()?'・デモ':''}）</span></span><span>${canEdit(m)?'あなたが編集できます':'閲覧のみ'}</span></div><div class="card-footer"><span>${esc(m.id.toUpperCase())}</span><button class="text-button" data-edit="${esc(m.id)}">${canEdit(m)?'プロフィールを編集':'詳細を見る'} ${icon('arrow')}</button></div></article>`}).join('')||empty('メンターが見つかりません','検索条件を変えてお試しください。');
+ document.querySelector('#mentor-cards').innerHTML=mentors.map(m=>{const reviews=state.reviews.filter(r=>r.mentor_id===m.id);const score=reviews.length?(reviews.reduce((s,r)=>s+r.stars,0)/reviews.length).toFixed(1):'—';return `<article class="mentor-card"><div class="mentor-card-header"><img class="mentor-photo" src="${esc(m.photo)}" alt="${esc(m.name)}"><div><h2 class="mentor-name">${esc(m.name)}</h2><span class="pill">${icon('check')}プロフィール登録済み</span>${m.grade?`<span class="pill">${esc(m.grade)}卒</span>`:''}<span class="pill type">${esc(m.type)}</span></div></div>${profileChips(profileTags(m))}<p class="mentor-copy">${esc(m.catch)}</p><p class="mentor-theme">${esc(m.theme)}</p><div class="tags">${m.features.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><div class="card-meta"><span><span class="stars">★</span>${score} <span>（レビュー ${reviews.length}件${demo()?'・デモ':''}）</span></span><span>${canEdit(m)?'あなたが編集できます':'閲覧のみ'}</span></div><div class="card-footer"><span>${esc(m.id.toUpperCase())}</span><button class="text-button" data-edit="${esc(m.id)}">${canEdit(m)?'プロフィールを編集':'詳細を見る'} ${icon('arrow')}</button></div></article>`}).join('')||empty('メンターが見つかりません','検索条件を変えてお試しください。');
  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{state.editing=b.dataset.edit;renderEditor();window.scrollTo(0,0)}));
 }
 
@@ -76,17 +76,154 @@ function openNewMentor(){
 }
 
 function field(key,label,value,max,textarea=false,help=''){return `<label class="field"><span>${label}</span>${textarea?`<textarea name="${key}" maxlength="${max}" rows="${key==='bio'?9:4}">${esc(value)}</textarea>`:`<input name="${key}" value="${esc(value)}" maxlength="${max}" ${key==='name'?'required':''}>`}${help?`<small>${help}</small>`:''}</label>`}
+function profileTags(profile){
+ const industry=profile.career.find(item=>item.kind==='industry')?.label;
+ const job=profile.career.find(item=>item.kind==='job')?.label;
+ const status=profile.career.find(item=>item.kind==='status')?.label;
+ return [industry,job||status,profile.university].filter(Boolean);
+}
+function profileChips(items){
+ return `<div class="public-profile-chips">${items.map(item=>`<span>${esc(item)}</span>`).join('')}</div>`;
+}
+function publicCardPreview(profile,photo){
+ const first=profile.plans[0];
+ const topics=[...new Set([...profile.features,...profile.topics])].slice(0,3);
+ return `<article class="public-card-preview">
+   ${profileChips(profileTags(profile))}
+   <div class="public-card-identity">
+     <img class="public-card-photo" src="${esc(photo)}" alt="">
+     <div><h3>${esc(profile.name||'表示名')}</h3><p>${esc([profile.grade&&profile.grade+'卒',profile.type].filter(Boolean).join('・'))}</p></div>
+     <img class="public-card-character" src="../assets/result-cast/${esc(profile.type)}.webp" alt="">
+   </div>
+   ${first?`<p class="public-card-plan">${esc(first.title)}</p>`:''}
+   ${profileChips(topics)}
+   <div class="public-card-footer"><span>オンライン・${esc(first?.duration||'30分')}</span><span>相談を申し込む →</span></div>
+ </article>`;
+}
+function profileDetailsPreview(profile){
+ const sections=[
+  ['ひとこと',profile.catch],
+  ['どんな学生に向いているか',profile.theme],
+  ['自己紹介',profile.bio],
+  ['相談の進め方',profile.style],
+ ];
+ return `${profile.plans.length?`<h3>面談プラン</h3>${profile.plans.map(plan=>`<article class="public-detail-plan"><strong>${esc(plan.title)}</strong><small>${esc([plan.place||'オンライン',plan.duration].filter(Boolean).join('・'))}</small><p>${esc(plan.text)}</p></article>`).join('')}`:''}
+   ${profile.career.length?`<h3>業種・職種</h3>${profileChips(profile.career.map(item=>item.label))}`:''}
+   ${sections.filter(([,value])=>value).map(([label,value])=>`<h3>${label}</h3><p class="preview-bio">${esc(value)}</p>`).join('')}
+   ${profile.topics.length?`<h3>相談にのれること</h3>${profileChips(profile.topics)}`:''}
+   ${profile.recommend.length?`<h3>こんな学生におすすめ</h3><ul>${profile.recommend.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`:''}`;
+}
 function renderEditor(){
  const m=mentorById(state.editing);if(!m)return;const editable=canEdit(m);
- content().innerHTML=heading(editable?'EDIT PROFILE':'VIEW PROFILE',editable?'プロフィールを編集':'プロフィール詳細',editable?'紐づけられた本人として編集できます。':'閲覧のみ：編集できるのは紐づけられたアカウントの保持者です。','<button class="button" id="back-profiles">一覧に戻る</button>')+ownerPanel(m)+((isAdmin()||canEdit(m))?'<div class="student-profile-link"><button class="button" id="profile-students">担当学生・進捗を見る</button></div>':'')+`<div class="editor-layout"><form id="profile-form"><section class="panel"><h2>基本情報</h2><div class="photo-edit"><img src="${esc(m.photo)}" alt="現在のプロフィール写真"><div><label class="field-label" for="photo-file">プロフィール写真</label><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"><p>JPEG・PNG・WebP / 5MBまで<br>写真の変更は選択後すぐに保存されます。</p></div></div><div class="field-row">${field('name','表示名',m.name,40)}<label class="field"><span>診断タイプ</span><select name="type">${Object.keys({ACTG:1,ACTP:1,ACIG:1,ACIP:1,ASTG:1,ASTP:1,ASIG:1,ASIP:1,DCTG:1,DCTP:1,DCIG:1,DCIP:1,DSTG:1,DSTP:1,DSIG:1,DSIP:1}).map(t=>`<option ${m.type===t?'selected':''}>${t}</option>`).join('')}</select></label></div>${field('catch','ひとこと',m.catch,60)}${field('theme','どんな学生に向いているか',m.theme,120)}${field('features','特徴・得意なこと',m.features.join('、'),122,false,'「、」で区切って3つまで。各40文字以内。')}</section><section class="panel"><h2>経験・プロフィール</h2><div class="field-row">${field('industries','業種',m.career.filter(v=>v.kind==='industry').map(v=>v.label).join('、'),300,false,'複数ある場合は「、」で区切って入力')}${field('jobs','職種',m.career.filter(v=>v.kind==='job').map(v=>v.label).join('、'),300)}</div>${field('status','ステータス',m.career.filter(v=>v.kind==='status').map(v=>v.label).join('、'),300,false,'例：27卒 内定者')}${field('university','出身学校',m.university||'',40,false,'例：〇〇大学（一覧のカードに表示されます）')}${field('bio','自己紹介',m.bio,5000,true)}${field('topics','相談にのれること',m.topics.join('、'),750,false,'「、」で区切って12個まで。各60文字以内。')}${field('recommend','こんな学生におすすめ',m.recommend.join('\n'),1610,true,'1行に1つずつ、8項目まで。各200文字以内。')}${field('style','相談の進め方',m.style,2000,true)}</section><section class="panel"><h2>面談プラン</h2><p class="mentor-theme">学生が「この人に相談したい」と思えるように、面談で提供できることを書いてください（3つまで）。一覧のカードと、プロフィール詳細に表示されます。</p>${[0,1,2].map(i=>{const p=(m.plans||[])[i]||{};return `<fieldset class="plan-slot"><legend>プラン${i+1}</legend>${field('plan'+i+'_title','タイトル（50文字まで）',p.title||'',50,false,i===0?'例：【28卒】インターン選びを、一緒に':'')}${field('plan'+i+'_text','内容（200文字まで）',p.text||'',200,true)}${field('plan'+i+'_duration','時間',p.duration||'',20,false,'例：30分')}</fieldset>`}).join('')}</section><div id="profile-error" class="form-error" role="alert" hidden></div><div class="save-bar"><p>保存後も公開サイトの接続までは<br>既存サイトに反映されません。</p><button class="button primary" type="submit">${icon('check')}変更を保存</button></div></form><aside class="panel preview-panel"><p class="preview-label">PROFILE PREVIEW</p><div id="live-preview"></div></aside></div>`;
+ const types=['ACTG','ACTP','ACIG','ACIP','ASTG','ASTP','ASIG','ASIP','DCTG','DCTP','DCIG','DCIP','DSTG','DSTP','DSIG','DSIP'];
+ const careerLabels=kind=>m.career.filter(item=>item.kind===kind).map(item=>item.label).join('、');
+ const plans=m.plans||[];
+ const grade=m.grade??(careerLabels('status').match(/(?:^|\D)(27|28|29)卒/)?.[1]||'');
+ content().innerHTML=heading(editable?'EDIT PROFILE':'VIEW PROFILE',editable?'プロフィールを編集':'プロフィール詳細',m.name,'<button class="button" id="back-profiles">一覧に戻る</button>')+`
+ <div class="editor-layout profile-editor">
+   <form id="profile-form">
+     <section class="panel">
+       <h2>一覧カード</h2>
+       <div class="photo-edit">
+         <img src="${esc(m.photo)}" alt="現在のプロフィール写真">
+         <div><label class="field-label" for="photo-file">プロフィール写真</label><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp"><p>JPEG・PNG・WebP / 5MBまで<br>写真は選択後すぐに保存されます。</p></div>
+       </div>
+       ${field('name','表示名',m.name,40)}
+       <div class="field-row">
+         <label class="field"><span>卒業年度</span><select name="grade"><option value="">未設定</option>${['27','28','29'].map(year=>`<option value="${year}" ${grade===year?'selected':''}>${year}卒</option>`).join('')}</select></label>
+         <label class="field"><span>診断タイプ</span><select name="type">${types.map(type=>`<option ${m.type===type?'selected':''}>${type}</option>`).join('')}</select></label>
+       </div>
+       <div class="field-row">
+         ${field('industries','業種',careerLabels('industry'),300,false,'複数ある場合は「、」で区切ります。')}
+         ${field('jobs','職種',careerLabels('job'),300)}
+       </div>
+       <div class="field-row">
+         ${field('university','出身学校',m.university,40)}
+         ${field('status','ステータス',careerLabels('status'),300,false,'職種が空欄の場合、カードに表示されます。')}
+       </div>
+       ${field('features','特徴・得意なこと',m.features.join('、'),122,false,'「、」区切りで3つまで。各40文字以内。')}
+     </section>
+     <section class="panel">
+       <h2>面談プラン</h2>
+       <p class="mentor-theme">入力順に表示します。先頭のプランが一覧カードに出ます。</p>
+       ${Array.from({length:3},(_,i)=>{
+         const plan=plans[i]||{};
+         const key='plan'+i+'_';
+         return `<fieldset class="plan-slot"><legend>プラン${i+1}</legend>
+           ${field(key+'title','タイトル',plan.title,50)}
+           ${field(key+'text','面談内容',plan.text,200,true)}
+           <div class="field-row">
+             ${field(key+'duration','時間',plan.duration,20,false,'例：30分')}
+             ${field(key+'place','場所',plan.place,40,false,'空欄の場合はオンライン')}
+           </div>
+           ${editable?'<button class="text-button clear-plan" type="button">このプランを空にする</button>':''}
+         </fieldset>`;
+       }).join('')}
+     </section>
+     <section class="panel">
+       <h2>プロフィール詳細</h2>
+       ${field('catch','ひとこと',m.catch,60)}
+       ${field('theme','どんな学生に向いているか',m.theme,120)}
+       ${field('bio','自己紹介',m.bio,5000,true)}
+       ${field('topics','相談にのれること',m.topics.join('、'),750,false,'「、」区切りで12個まで。各60文字以内。')}
+       ${field('recommend','こんな学生におすすめ',m.recommend.join('\n'),1610,true,'1行に1つずつ、8項目まで。各200文字以内。')}
+       ${field('style','相談の進め方',m.style,2000,true)}
+     </section>
+     <div id="profile-error" class="form-error" role="alert" hidden></div>
+     <div class="save-bar"><p>${demo()?'このブラウザーのデモに保存します。':'管理画面に保存します。'}</p><button class="button primary" type="submit">${icon('check')}変更を保存</button></div>
+   </form>
+   <aside class="panel preview-panel profile-preview" aria-label="公開画面のプレビュー">
+     <h2>一覧カードのプレビュー</h2>
+     <div id="live-preview"></div>
+     <details class="profile-preview-details"><summary>プロフィール詳細のプレビュー</summary><div id="live-details"></div></details>
+   </aside>
+ </div>`+ownerPanel(m)+((isAdmin()||editable)?'<div class="student-profile-link"><button class="button" id="profile-students">担当学生・進捗を見る</button></div>':'');
  document.querySelector('#profile-students')?.addEventListener('click',()=>openMentorStudents(m.id));
  wireOwner(m);
  const form=document.querySelector('#profile-form');
- function getValues(){const f=new FormData(form);const list=k=>String(f.get(k)||'').split(/[、,\n]/).map(v=>v.trim()).filter(Boolean);return {name:f.get('name'),type:f.get('type'),catch:f.get('catch'),theme:f.get('theme'),features:list('features'),topics:list('topics'),recommend:String(f.get('recommend')).split('\n').map(v=>v.trim()).filter(Boolean),bio:f.get('bio'),style:f.get('style'),career:[...list('industries').map(label=>({kind:'industry',label})),...list('jobs').map(label=>({kind:'job',label})),...list('status').map(label=>({kind:'status',label}))],university:String(f.get('university')||'').trim(),plans:[0,1,2].map(i=>({title:String(f.get('plan'+i+'_title')||'').trim(),text:String(f.get('plan'+i+'_text')||'').trim(),duration:String(f.get('plan'+i+'_duration')||'').trim()})).filter(p=>p.title),version:m.version}}
- function preview(){const v=getValues();document.querySelector('#live-preview').innerHTML=`<img class="preview-photo" src="${esc(m.photo)}" alt="プロフィール写真"><span class="pill type">${esc(v.type)}</span><h2 class="preview-name">${esc(v.name)}</h2><p class="mentor-copy">${esc(v.catch)}</p><p class="mentor-theme">${esc(v.theme)}</p><div class="tags">${v.features.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><p class="preview-bio">${esc(v.bio)}</p>`}
+ const clearedPlans=new Set();
+ form.querySelectorAll('.clear-plan').forEach((button,i)=>button.addEventListener('click',()=>{
+   const slot=button.closest('.plan-slot');
+   slot.querySelectorAll('input,textarea').forEach(field=>field.value='');
+   clearedPlans.add(i);
+   const title=slot.querySelector('[name$="_title"]');
+   title.dispatchEvent(new Event('input',{bubbles:true}));
+   title.focus();
+ }));
+ function getValues(){
+   const fields=new FormData(form);
+   const value=key=>String(fields.get(key)||'').trim();
+   const list=key=>value(key).split(/[、,\n]/).map(item=>item.trim()).filter(Boolean);
+   return {
+     name:value('name'),type:value('type'),grade:value('grade'),catch:value('catch'),theme:value('theme'),
+     features:list('features'),topics:list('topics'),recommend:value('recommend').split('\n').map(item=>item.trim()).filter(Boolean),
+     bio:value('bio'),style:value('style'),university:value('university'),
+     career:[['industries','industry'],['jobs','job'],['status','status']].flatMap(([key,kind])=>list(key).map(label=>({kind,label}))),
+     plans:Array.from({length:3},(_,i)=>({
+       title:value('plan'+i+'_title'),text:value('plan'+i+'_text'),
+       duration:value('plan'+i+'_duration'),place:value('plan'+i+'_place'),
+       image:clearedPlans.has(i)?'':plans[i]?.image||'',
+     })).filter(plan=>plan.title),
+     version:m.version,
+   };
+ }
+ function preview(){
+   const profile=getValues();
+   document.querySelector('#live-preview').innerHTML=publicCardPreview(profile,m.photo);
+   document.querySelector('#live-details').innerHTML=profileDetailsPreview(profile)||'<p>プロフィールの内容がここに表示されます。</p>';
+ }
  preview();
  if(!editable){form.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);form.querySelector('.save-bar').innerHTML='<p>このプロフィールは閲覧のみです。</p>';document.querySelector('#back-profiles').addEventListener('click',()=>go('profiles'));return}
- form.addEventListener('input',e=>{if(e.target.id==='photo-file')return;state.dirty=true;preview()});
+ form.addEventListener('input',e=>{
+   if(e.target.id==='photo-file')return;
+   for(const slot of form.querySelectorAll('.plan-slot')){
+     const title=slot.querySelector('[name$="_title"]');
+     title.required=[...slot.querySelectorAll('input,textarea')].some(field=>field!==title&&field.value.trim());
+     title.setCustomValidity(title.required&&!title.value.trim()?'面談プランのタイトルを入力してください。':'');
+   }
+   state.dirty=true;
+   preview();
+ });
  document.querySelector('#back-profiles').addEventListener('click',()=>go('profiles'));
  form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('[type=submit]');button.disabled=true;const error=document.querySelector('#profile-error');error.hidden=true;try{await api('/api/mentors/'+m.id,{method:'PUT',body:getValues()});state.dirty=false;await refresh();renderEditor();toast('プロフィールを保存しました。')}catch(err){error.textContent=err.message;error.hidden=false;toast(err.message,true)}finally{button.disabled=false}});
  document.querySelector('#photo-file').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024){toast('画像は5MB以下にしてください。',true);e.target.value='';return}e.target.disabled=true;try{const data=new FormData();data.append('photo',file);await api('/api/mentors/'+m.id+'/photo',{method:'POST',body:data});const latest=(await api('/api/mentors')).mentors.find(v=>v.id===m.id);m.photo=latest.photo;m.version=latest.version;form.querySelector('.photo-edit img').src=m.photo;preview();toast('プロフィール写真を保存しました。')}catch(err){toast(err.message,true)}finally{e.target.disabled=false;e.target.value=''}});
@@ -125,7 +262,18 @@ function renderConnection(){
 }
 window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue=''}});
 async function boot(){
- try{state.config=await api('/api/config');if(demo())state.demoAccounts=(await api('/api/demo/accounts')).accounts;try{state.user=await api('/api/me')}catch{state.user=null}if(state.user)await refresh();render()}
- catch(e){root.innerHTML='<div class="empty"><h3>管理画面を読み込めませんでした</h3><p>サーバーの起動状態を確認し、ページを再読み込みしてください。</p><button class="button" id="retry">再読み込み</button></div>';document.querySelector('#retry').addEventListener('click',()=>location.reload())}
+ const startupStatus=document.querySelector('#startup-status');
+ try{
+   if(!window.TamaDemo || typeof renderStudents!=='function')throw new Error('管理画面のファイルを読み込めませんでした。');
+   state.config=await api('/api/config');
+   if(demo())state.demoAccounts=(await api('/api/demo/accounts')).accounts;
+   try{state.user=await api('/api/me')}catch{state.user=null}
+   if(state.user)await refresh();
+   render();
+ }catch(e){
+   if(startupStatus)root.replaceChildren(startupStatus);
+   else root.innerHTML='<div class="empty"><h3>管理画面を開けませんでした</h3><a class="button" href="">再読み込み</a></div>';
+   toast(e.message,true);
+ }
 }
 boot();

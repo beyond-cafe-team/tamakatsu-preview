@@ -68,7 +68,7 @@
   if(path==='/api/mentors'&&method==='POST'){
    admin();if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>40||!emailValid(body.ownerEmail))error('表示名とGoogleメールアドレスを確認してください。');
    const ownerEmail=body.ownerEmail.toLowerCase().trim();invite(ownerEmail);const number=Math.max(0,...data.mentors.map(m=>Number(m.id.slice(7))||0))+1;const id='mentor-'+String(number).padStart(2,'0');
-   data.mentors.push({id,no:String(number).padStart(2,'0'),name:body.name.trim(),ownerEmail,photo:'./photos/placeholder.svg',type:'ACTG',catch:'',theme:'',bio:'',style:'',features:[],topics:[],recommend:[],career:[],samples:[],reviews:[],version:1,updatedAt:Math.floor(Date.now()/1000)});
+   data.mentors.push({id,no:String(number).padStart(2,'0'),name:body.name.trim(),ownerEmail,photo:'./photos/placeholder.svg',type:'ACTG',grade:'',catch:'',theme:'',bio:'',style:'',features:[],topics:[],recommend:[],career:[],samples:[],reviews:[],version:1,updatedAt:Math.floor(Date.now()/1000)});
    audit('mentor.create',id);save();return response({ok:true,id},201);
   }
   const ownership=path.match(/^\/api\/mentors\/(mentor-\d+)\/owner$/);
@@ -92,11 +92,21 @@
      if(!Array.isArray(body[key])||body[key].length>count||body[key].some(v=>typeof v!=='string'||!v.trim()||v.length>max))error(key+'の入力数・文字数を確認してください。');
     }
     if(!Array.isArray(body.career)||body.career.length>8||body.career.some(c=>!['industry','job','status'].includes(c.kind)||typeof c.label!=='string'||!c.label.trim()||c.label.length>60))error('業種・職種の入力を確認してください。');
+    if(body.grade!==undefined&&!['','27','28','29'].includes(body.grade))error('卒業年度を確認してください。');
     if(body.university!==undefined&&(typeof body.university!=='string'||body.university.trim().length>40))error('出身学校の入力を確認してください。');
-    if(body.plans!==undefined&&(!Array.isArray(body.plans)||body.plans.length>3||body.plans.some(p=>!p||typeof p.title!=='string'||!p.title.trim()||p.title.length>50||typeof p.text!=='string'||p.text.length>200||typeof p.duration!=='string'||p.duration.length>20)))error('面談プランの入力数・文字数を確認してください。');
+    if(body.plans!==undefined&&(!Array.isArray(body.plans)||body.plans.length>3||body.plans.some(p=>!p||typeof p.title!=='string'||!p.title.trim()||p.title.length>50||typeof p.text!=='string'||p.text.length>200||typeof p.duration!=='string'||p.duration.length>20||
+      (p.place!==undefined&&(typeof p.place!=='string'||p.place.length>40))||
+      (p.image!==undefined&&typeof p.image!=='string'))))error('面談プランの入力数・文字数を確認してください。');
     for(const key of ['name','catch','theme','bio','style','type','features','topics','recommend','career'])m[key]=clone(body[key]);
+    if(body.grade!==undefined)m.grade=body.grade;
     m.university=typeof body.university==='string'?body.university.trim():(m.university||'');
-    if(Array.isArray(body.plans))m.plans=body.plans.map(p=>({title:p.title.trim(),text:p.text.trim(),duration:p.duration.trim(),place:'オンライン',image:''}));
+    if(Array.isArray(body.plans))m.plans=body.plans.map((plan,i)=>({
+     title:plan.title.trim(),
+     text:plan.text.trim(),
+     duration:plan.duration.trim(),
+     place:(plan.place??m.plans?.[i]?.place??'').trim()||'オンライン',
+     image:plan.image??m.plans?.[i]?.image??'',
+    }));
    }else error('対応していない操作です。',405);
    m.version++;m.updatedAt=Math.floor(Date.now()/1000);audit(profile[2]?'photo.update':'profile.update',m.id);save();return response({ok:true});
   }
